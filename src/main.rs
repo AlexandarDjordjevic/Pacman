@@ -1,66 +1,7 @@
-// use std::collections::HashMap;
-// use std::rc::Weak;
-
-// trait EventSubscriber {
-//     fn notify(&self, event: &str, message: &str);
-// }
-
-// struct EventDispatcher {
-//     subs: HashMap<String, Vec<Weak<dyn EventSubscriber>>>,
-// }
-
-// impl EventDispatcher {
-//     fn new() -> Self {
-//         EventDispatcher {
-//             subs: HashMap::new(),
-//         }
-//     }
-
-//     fn subscribe(&mut self, subscriber: Weak<dyn EventSubscriber>, event: &str) {
-//         let item = self.subs.get_mut(event);
-//         match item {
-//             Some(entry) => entry.push(subscriber),
-//             None => {
-//                 let mut vec = Vec::<Weak<dyn EventSubscriber>>::new();
-//                 vec.push(subscriber);
-//                 self.subs.insert(event.to_string(), vec);
-//             }
-//         }
-//     }
-
-//     fn notify(&self, event: &str, _message: &str) {
-//         let subscribers = self.subs.get(event);
-//         match subscribers {
-//             Some(subs) => {
-//                 for sub in subs {
-//                     let s = sub.upgrade();
-//                     match s {
-//                         Some(subscriber) => subscriber.notify("event", "message"),
-//                         None => (),
-//                     }
-//                 }
-//             }
-//             None => (),
-//         }
-//     }
-// }
-
-// struct AppEventListener {}
-
-// // impl AppEventListener {
-// //     fn new() -> Self {}
-// // }
-
-// impl EventSubscriber for AppEventListener {
-//     fn notify(&self, event: &str, message: &str) {
-//         match event {
-//             "quit" => println!("QUIT THE APPLICATION"),
-//             _ => println!("Unknown event {}", event),
-//         }
-//     }
-// }
+use std::time::Duration;
 
 use sfml::{
+    audio::{Sound, SoundBuffer},
     graphics::{
         Color, Drawable, Font, RenderStates, RenderTarget, RenderWindow, Text, Transformable,
     },
@@ -180,12 +121,43 @@ impl Drawable for Menu {
     }
 }
 
+struct SoundPlayer {
+    credit: SfBox<SoundBuffer>,
+    death: SfBox<SoundBuffer>,
+}
+
+enum Sounds {
+    Credit,
+    Death,
+}
+
+impl SoundPlayer {
+    fn new() -> Self {
+        SoundPlayer {
+            credit: SoundBuffer::from_file("./resources/sounds/credit.wav").unwrap(),
+            death: SoundBuffer::from_file("./resources/sounds/death_1.wav").unwrap(),
+        }
+    }
+
+    fn play(&self, sound: Sounds) {
+        let mut snd = Sound::new();
+        match sound {
+            Sounds::Credit => {
+                snd.set_buffer(&self.credit);
+            }
+            Sounds::Death => {
+                snd.set_buffer(&self.credit);
+            }
+        }
+        snd.play();
+    }
+}
+
 struct PacMan {
     window: RenderWindow,
     menu: Menu,
     quit_loop: bool,
-    // event_dispatcher: EventDispatcher,
-    // event_listener: Rc<AppEventListener>,
+    sound_player: SoundPlayer,
 }
 
 impl PacMan {
@@ -194,15 +166,12 @@ impl PacMan {
             window: RenderWindow::new((800, 600), "PAC-MAN", Style::CLOSE, &Default::default()),
             menu: Menu::new(),
             quit_loop: false,
-            // event_dispatcher: EventDispatcher::new(),
-            // event_listener: AppEventListener {}.into(),
+            sound_player: SoundPlayer::new(),
         }
     }
 
     fn setup(&mut self) {
         self.window.set_vertical_sync_enabled(true);
-        // self.event_dispatcher
-        //     .subscribe(Rc::downgrade(&self.event_listener), "quit_app")
     }
 
     fn run(&mut self) {
@@ -213,10 +182,16 @@ impl PacMan {
                     | Event::KeyPressed {
                         code: Key::Escape, ..
                     } => self.quit(),
-                    Event::KeyPressed { code: Key::Up, .. } => self.menu.cursor_up(),
+                    Event::KeyPressed { code: Key::Up, .. } => {
+                        self.menu.cursor_up();
+                        self.sound_player.play(Sounds::Credit);
+                    }
                     Event::KeyPressed {
                         code: Key::Down, ..
-                    } => self.menu.cursor_down(),
+                    } => {
+                        self.menu.cursor_down();
+                        self.sound_player.play(Sounds::Credit);
+                    }
                     Event::KeyPressed {
                         code: Key::Enter, ..
                     } => self.menu.select_action(),
@@ -242,4 +217,9 @@ fn main() {
     let mut pac_man = PacMan::new();
     pac_man.setup();
     pac_man.run();
+    // let sb = SoundBuffer::from_file("./resources/sounds/death_1.wav").unwrap();
+    // let mut sound = Sound::new();
+    // sound.set_buffer(&sb);
+    // sound.play();
+    // std::thread::sleep(Duration::from_micros(4000));
 }

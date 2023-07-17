@@ -1,7 +1,7 @@
-use std::time::Duration;
+use std::thread::Thread;
 
 use sfml::{
-    audio::{Sound, SoundBuffer},
+    audio::{Sound, SoundBuffer, SoundStatus},
     graphics::{
         Color, Drawable, Font, RenderStates, RenderTarget, RenderWindow, Text, Transformable,
     },
@@ -134,7 +134,7 @@ enum Sounds {
 impl SoundPlayer {
     fn new() -> Self {
         SoundPlayer {
-            credit: SoundBuffer::from_file("./resources/sounds/credit.wav").unwrap(),
+            credit: SoundBuffer::from_file("./resources/sounds/menu_select.wav").unwrap(),
             death: SoundBuffer::from_file("./resources/sounds/death_1.wav").unwrap(),
         }
     }
@@ -144,12 +144,17 @@ impl SoundPlayer {
         match sound {
             Sounds::Credit => {
                 snd.set_buffer(&self.credit);
+                snd.play();
+                loop {
+                    if snd.status() != SoundStatus::PLAYING {
+                        return;
+                    }
+                }
             }
             Sounds::Death => {
                 snd.set_buffer(&self.credit);
             }
         }
-        snd.play();
     }
 }
 
@@ -217,9 +222,4 @@ fn main() {
     let mut pac_man = PacMan::new();
     pac_man.setup();
     pac_man.run();
-    // let sb = SoundBuffer::from_file("./resources/sounds/death_1.wav").unwrap();
-    // let mut sound = Sound::new();
-    // sound.set_buffer(&sb);
-    // sound.play();
-    // std::thread::sleep(Duration::from_micros(4000));
 }

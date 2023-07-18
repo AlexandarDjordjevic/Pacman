@@ -1,6 +1,5 @@
-use std::rc::Weak;
-use std::{collections::HashMap, rc::Rc};
 use rand::Rng;
+use std::rc::Rc;
 
 use sfml::{
     graphics::{
@@ -140,14 +139,18 @@ impl Drawable for Menu {
     }
 }
 
+enum GameState {
+    Menu,
+    Running,
+    Paused,
+}
+
 struct PacMan {
     window: RenderWindow,
     menu: Menu,
     quit_loop: bool,
     game_table: Option<GameTable>,
-    game_running: bool,
-    // event_dispatcher: EventDispatcher,
-    // event_listener: Rc<AppEventListener>,
+    game_state: GameState,
 }
 
 impl PacMan {
@@ -157,7 +160,7 @@ impl PacMan {
             menu: Menu::new(),
             quit_loop: false,
             game_table: None,
-            game_running: false,
+            game_state: GameState::Menu,
         }
     }
 
@@ -191,20 +194,24 @@ impl PacMan {
             }
 
             self.window.clear(Color::BLACK);
-            if self.game_running {
-                if let Some(game_table) = &self.game_table {
-                    self.window.draw(game_table);
+
+            match &self.game_state {
+                GameState::Menu => {
+                    self.window.draw(&self.menu);
                 }
-            } else {
-                self.window.draw(&self.menu);
+                GameState::Running => {
+                    if let Some(game_table) = &self.game_table {
+                        self.window.draw(game_table);
+                    }
+                }
+                GameState::Paused => todo!(),
             }
-            self.window.draw(&self.menu);
             self.window.display()
         }
     }
 
     fn start_new_game(&mut self) {
-        self.game_running = true;
+        self.game_state = GameState::Running;
         let mut rng = rand::thread_rng();
         let grid: Vec<Vec<u8>> = (0..50)
             .map(|_| {

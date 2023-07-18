@@ -1,7 +1,8 @@
-use std::thread::Thread;
+use std::rc::Weak;
+use std::{collections::HashMap, rc::Rc};
+use rand::Rng;
 
 use sfml::{
-    audio::{Sound, SoundBuffer, SoundStatus},
     graphics::{
         Color, Drawable, Font, RenderStates, RenderTarget, RenderWindow, Text, Transformable,
     },
@@ -16,19 +17,25 @@ struct MenuItem {
     text_size: u32,
     position: u32,
     selected: bool,
-    action: fn(&str),
+    action: Rc<dyn Fn(&mut PacMan)>,
 }
 
 impl MenuItem {
-    fn new(label: &str, text_size: u32, position: u32, selected: bool) -> Self {
+    fn new(
+        label: &str,
+        text_size: u32,
+        position: u32,
+        selected: bool,
+        action: Rc<dyn Fn(&mut PacMan)>,
+    ) -> Self {
         let font = Font::from_file("./resources/fonts/Pacmania.otf").unwrap();
         MenuItem {
             label: label.to_owned(),
-            font: font.to_owned(),
-            text_size: text_size,
-            position: position,
-            selected: selected,
-            action: |label| println!("{} item action", label),
+            font,
+            text_size,
+            position,
+            selected,
+            action,
         }
     }
 
@@ -36,8 +43,8 @@ impl MenuItem {
         self.font.line_spacing(self.text_size)
     }
 
-    fn on_enter(&self) {
-        (self.action)(&self.label);
+    fn on_enter(&self) -> Rc<dyn Fn(&mut PacMan)> {
+        Rc::clone(&self.action)
     }
 }
 
@@ -69,18 +76,30 @@ struct Menu {
 impl Menu {
     fn new() -> Self {
         let mut items = Vec::new();
-        items.push(MenuItem::new("New game", 64, 0, true));
+        items.push(MenuItem::new(
+            "New game",
+            64,
+            0,
+            true,
+            Rc::new(|game: &mut PacMan| {
+                game.start_new_game();
+            }),
+        ));
         items.push(MenuItem::new(
             "High score",
             64,
             items[0].get_height() as u32,
             false,
+            Rc::new(|_| {}),
         ));
         items.push(MenuItem::new(
             "Exit",
             64,
             (items[0].get_height() * 2.) as u32,
             false,
+            Rc::new(|game: &mut PacMan| {
+                game.quit();
+            }),
         ));
         Menu {
             items: items,
@@ -104,8 +123,8 @@ impl Menu {
         }
     }
 
-    fn select_action(&self) {
-        self.items[self.cursor_position].on_enter();
+    fn select_action(&self) -> Rc<dyn Fn(&mut PacMan)> {
+        Rc::clone(&self.items[self.cursor_position].action)
     }
 }
 
@@ -121,48 +140,14 @@ impl Drawable for Menu {
     }
 }
 
-struct SoundPlayer {
-    credit: SfBox<SoundBuffer>,
-    death: SfBox<SoundBuffer>,
-}
-
-enum Sounds {
-    Credit,
-    Death,
-}
-
-impl SoundPlayer {
-    fn new() -> Self {
-        SoundPlayer {
-            credit: SoundBuffer::from_file("./resources/sounds/menu_select.wav").unwrap(),
-            death: SoundBuffer::from_file("./resources/sounds/death_1.wav").unwrap(),
-        }
-    }
-
-    fn play(&self, sound: Sounds) {
-        let mut snd = Sound::new();
-        match sound {
-            Sounds::Credit => {
-                snd.set_buffer(&self.credit);
-                snd.play();
-                loop {
-                    if snd.status() != SoundStatus::PLAYING {
-                        return;
-                    }
-                }
-            }
-            Sounds::Death => {
-                snd.set_buffer(&self.credit);
-            }
-        }
-    }
-}
-
 struct PacMan {
     window: RenderWindow,
     menu: Menu,
     quit_loop: bool,
-    sound_player: SoundPlayer,
+    game_table: Option<GameTable>,
+    game_running: bool,
+    // event_dispatcher: EventDispatcher,
+    // event_listener: Rc<AppEventListener>,
 }
 
 impl PacMan {
@@ -171,7 +156,8 @@ impl PacMan {
             window: RenderWindow::new((800, 600), "PAC-MAN", Style::CLOSE, &Default::default()),
             menu: Menu::new(),
             quit_loop: false,
-            sound_player: SoundPlayer::new(),
+            game_table: None,
+            game_running: false,
         }
     }
 
@@ -187,19 +173,16 @@ impl PacMan {
                     | Event::KeyPressed {
                         code: Key::Escape, ..
                     } => self.quit(),
-                    Event::KeyPressed { code: Key::Up, .. } => {
-                        self.menu.cursor_up();
-                        self.sound_player.play(Sounds::Credit);
-                    }
+                    Event::KeyPressed { code: Key::Up, .. } => self.menu.cursor_up(),
                     Event::KeyPressed {
                         code: Key::Down, ..
-                    } => {
-                        self.menu.cursor_down();
-                        self.sound_player.play(Sounds::Credit);
-                    }
+                    } => self.menu.cursor_down(),
                     Event::KeyPressed {
                         code: Key::Enter, ..
-                    } => self.menu.select_action(),
+                    } => {
+                        let action = self.menu.select_action();
+                        action(self);
+                    }
                     _ => {}
                 }
                 if self.quit_loop {
@@ -208,13 +191,82 @@ impl PacMan {
             }
 
             self.window.clear(Color::BLACK);
+            if self.game_running {
+                if let Some(game_table) = &self.game_table {
+                    self.window.draw(game_table);
+                }
+            } else {
+                self.window.draw(&self.menu);
+            }
             self.window.draw(&self.menu);
             self.window.display()
         }
     }
 
+    fn start_new_game(&mut self) {
+        self.game_running = true;
+        let mut rng = rand::thread_rng();
+        let grid: Vec<Vec<u8>> = (0..50)
+            .map(|_| {
+                (0..50)
+                    .map(|_| rng.gen_range(0..3)) // Generate a random number between 0 and 2
+                    .collect()
+            })
+            .collect();
+        self.game_table = Some(GameTable::new(grid));
+    }
+
     fn quit(&mut self) {
         self.quit_loop = true;
+    }
+}
+
+use sfml::graphics::{RectangleShape, Shape};
+use sfml::graphics::{Sprite, Texture};
+
+struct GameTable {
+    grid: Vec<Vec<u8>>,
+    food_texture: SfBox<Texture>,
+    wall_texture: SfBox<Texture>,
+}
+
+impl GameTable {
+    fn new(grid: Vec<Vec<u8>>) -> Self {
+        let food_texture = Texture::from_file("./resources/images/food.png").unwrap();
+        let wall_texture = Texture::from_file("./resources/images/wall.png").unwrap();
+
+        GameTable {
+            grid,
+            food_texture,
+            wall_texture,
+        }
+    }
+}
+
+const CELL_SIZE: f32 = 32.;
+
+impl Drawable for GameTable {
+    fn draw<'a: 'shader, 'texture, 'shader, 'shader_texture>(
+        &'a self,
+        target: &mut dyn RenderTarget,
+        _: &RenderStates<'texture, 'shader, 'shader_texture>,
+    ) {
+        for (y, row) in self.grid.iter().enumerate() {
+            for (x, &cell) in row.iter().enumerate() {
+                let mut shape = RectangleShape::new();
+                shape.set_position((x as f32 * CELL_SIZE, y as f32 * CELL_SIZE));
+                shape.set_size((CELL_SIZE, CELL_SIZE));
+
+                match cell {
+                    0 => (), // Do nothing for 0
+                    1 => shape.set_texture(&self.food_texture, true),
+                    2 => shape.set_texture(&self.wall_texture, true),
+                    _ => println!("Unknown cell type"),
+                }
+
+                target.draw(&shape);
+            }
+        }
     }
 }
 

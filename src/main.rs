@@ -10,6 +10,9 @@ use sfml::{
     SfBox,
 };
 
+mod character;
+use character::{Character, CharacterType, MoveDirection, Position};
+
 struct MenuItem {
     label: String,
     font: SfBox<Font>,
@@ -40,10 +43,6 @@ impl MenuItem {
 
     fn get_height(&self) -> f32 {
         self.font.line_spacing(self.text_size)
-    }
-
-    fn on_enter(&self) -> Rc<dyn Fn(&mut PacMan)> {
-        Rc::clone(&self.action)
     }
 }
 
@@ -142,7 +141,6 @@ impl Drawable for Menu {
 enum GameState {
     Menu,
     Running,
-    Paused,
 }
 
 struct PacMan {
@@ -156,7 +154,7 @@ struct PacMan {
 impl PacMan {
     fn new() -> Self {
         PacMan {
-            window: RenderWindow::new((800, 600), "PAC-MAN", Style::CLOSE, &Default::default()),
+            window: RenderWindow::new((1800, 1600), "PAC-MAN", Style::CLOSE, &Default::default()),
             menu: Menu::new(),
             quit_loop: false,
             game_table: None,
@@ -204,7 +202,6 @@ impl PacMan {
                         self.window.draw(game_table);
                     }
                 }
-                GameState::Paused => todo!(),
             }
             self.window.display()
         }
@@ -228,29 +225,41 @@ impl PacMan {
     }
 }
 
+use sfml::graphics::Texture;
 use sfml::graphics::{RectangleShape, Shape};
-use sfml::graphics::{Sprite, Texture};
 
 struct GameTable {
-    grid: Vec<Vec<u8>>,
-    food_texture: SfBox<Texture>,
-    wall_texture: SfBox<Texture>,
+    background_texture: SfBox<Texture>,
 }
 
 impl GameTable {
     fn new(grid: Vec<Vec<u8>>) -> Self {
-        let food_texture = Texture::from_file("./resources/images/food.png").unwrap();
-        let wall_texture = Texture::from_file("./resources/images/wall.png").unwrap();
-
-        GameTable {
-            grid,
-            food_texture,
-            wall_texture,
-        }
+        let background_texture = Texture::from_file("./resources/images/background.png").unwrap();
+        GameTable { background_texture }
     }
 }
 
-const CELL_SIZE: f32 = 32.;
+/*
+game play:
+    scan keyboard change
+
+    update map
+        move pac-man
+            handler direction change request
+
+        move enemy
+            generate direction change
+
+game rendering
+    game state -> menu
+        render menu
+    games state -> play
+        render background
+        render food
+        render special food
+        render enemies
+        render pac-man
+*/
 
 impl Drawable for GameTable {
     fn draw<'a: 'shader, 'texture, 'shader, 'shader_texture>(
@@ -258,22 +267,50 @@ impl Drawable for GameTable {
         target: &mut dyn RenderTarget,
         _: &RenderStates<'texture, 'shader, 'shader_texture>,
     ) {
-        for (y, row) in self.grid.iter().enumerate() {
-            for (x, &cell) in row.iter().enumerate() {
-                let mut shape = RectangleShape::new();
-                shape.set_position((x as f32 * CELL_SIZE, y as f32 * CELL_SIZE));
-                shape.set_size((CELL_SIZE, CELL_SIZE));
+        let mut background = RectangleShape::new();
+        background.set_texture(&self.background_texture, true);
+        background.set_size(Vector2f::new(1450., 1600.));
+        target.draw(&background);
 
-                match cell {
-                    0 => (), // Do nothing for 0
-                    1 => shape.set_texture(&self.food_texture, true),
-                    2 => shape.set_texture(&self.wall_texture, true),
-                    _ => println!("Unknown cell type"),
-                }
+        let tasty_enemy = Character::new(
+            CharacterType::TastyGhost,
+            32,
+            MoveDirection::Up,
+            Position { x: 915, y: 705 },
+        );
+        target.draw(&tasty_enemy);
 
-                target.draw(&shape);
-            }
-        }
+        let blue_enemy = Character::new(
+            CharacterType::BlueGhost,
+            32,
+            MoveDirection::Down,
+            Position { x: 460, y: 560 },
+        );
+        target.draw(&blue_enemy);
+
+        let red_enemy = Character::new(
+            CharacterType::RedGhost,
+            32,
+            MoveDirection::Right,
+            Position { x: 163, y: 710 },
+        );
+        target.draw(&red_enemy);
+
+        let yellow_enemy = Character::new(
+            CharacterType::RedGhost,
+            32,
+            MoveDirection::Left,
+            Position { x: 460, y: 860 },
+        );
+        target.draw(&yellow_enemy);
+
+        let pac_man = Character::new(
+            CharacterType::PacMan,
+            32,
+            MoveDirection::Left,
+            Position { x: 1230, y: 705 },
+        );
+        target.draw(&pac_man);
     }
 }
 

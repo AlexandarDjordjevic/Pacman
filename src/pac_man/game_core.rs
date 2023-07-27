@@ -10,7 +10,7 @@ pub enum EventAction {
 
 pub trait GameStateModel {
     fn handle_keyboard(&mut self, event: &Event) -> EventAction;
-    fn update_state(&self);
+    fn update_state(&mut self);
 }
 
 pub trait GameDrawableState: GameStateModel + Drawable {

@@ -99,7 +99,7 @@ impl GameStateModel for Menu {
         EventAction::Nop
     }
 
-    fn update_state(&self){}
+    fn update_state(&mut self){}
 }
 
 impl Drawable for Menu {

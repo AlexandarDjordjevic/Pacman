@@ -175,9 +175,22 @@ impl Character {
         }
     }
 
-    fn update_position(&self) {}
+    pub fn update_position(&mut self) {
+        match self.move_direction {
+            MoveDirection::Up => self.position.y = self.position.y - self.move_speed,
+            MoveDirection::Down => self.position.y = self.position.y + self.move_speed,
+            MoveDirection::Left => self.position.x = self.position.x - self.move_speed,
+            MoveDirection::Right => self.position.x = self.position.x + self.move_speed,
+        }
+    }
 
-    fn set_new_speed(&self) {}
+    pub fn set_new_speed(&mut self, move_speed: u32) {
+        self.move_speed = move_speed;
+    }
+
+    pub fn set_new_direction(&mut self, move_direction: MoveDirection) {
+        self.move_direction = move_direction;
+    }
 }
 
 impl Drawable for Character {

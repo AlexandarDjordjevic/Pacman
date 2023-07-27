@@ -13,40 +13,34 @@ impl Playground {
             background: Background::new(),
             pac_man: Character::new(
                 CharacterType::PacMan,
-                32,
+                8,
                 MoveDirection::Left,
                 Position { x: 1230, y: 705 }
             ),
             enemies: vec![
                  Character::new(
                     CharacterType::TastyGhost,
-                    32,
+                    3,
                     MoveDirection::Up,
                     Position { x: 915, y: 705 },
                 ),
                 Character::new(
                     CharacterType::BlueGhost,
-                    32,
+                    5,
                     MoveDirection::Down,
                     Position { x: 460, y: 560 },
                 ),
                Character::new(
                     CharacterType::RedGhost,
-                    32,
+                    5,
                     MoveDirection::Right,
                     Position { x: 163, y: 710 },
                 ),
                 Character::new(
                     CharacterType::YellowGhost,
-                    32,
+                    5,
                     MoveDirection::Left,
                     Position { x: 460, y: 860 },
-                ),
-                Character::new(
-                    CharacterType::PacMan,
-                    32,
-                    MoveDirection::Left,
-                    Position { x: 1230, y: 705 },
                 )
             ]
         }
@@ -57,7 +51,6 @@ impl GameDrawableState for Playground where Playground: GameStateModel + Drawabl
     fn as_game_state_model(&self) -> &dyn GameStateModel {
         self
     }
-
     fn as_drawable(&self) -> &dyn Drawable {
         self
     }
@@ -70,13 +63,22 @@ impl GameStateModel for Playground {
             | Event::KeyPressed {
                 code: Key::Escape, ..
             } => return EventAction::OpenMenu,
+            Event::KeyPressed {
+                code: Key::Up, ..} => self.pac_man.set_new_direction(MoveDirection::Up),
+            Event::KeyPressed {
+                code: Key::Down, ..} => self.pac_man.set_new_direction(MoveDirection::Down),
+            Event::KeyPressed {
+                code: Key::Left, ..} => self.pac_man.set_new_direction(MoveDirection::Left),
+            Event::KeyPressed {
+                code: Key::Right, ..} => self.pac_man.set_new_direction(MoveDirection::Right),
             _ => {}
         }
         EventAction::Nop
     }
 
-    fn update_state(&self) {
-
+    fn update_state(&mut self) {
+        self.pac_man.update_position();
+        self.enemies.iter_mut().for_each(|enemy|enemy.update_position());
     }
 }
 
@@ -88,6 +90,7 @@ impl Drawable for Playground {
     ) {
         self.background.draw(target, states);
         self.pac_man.draw(target, states);
+        //self.food.draw()
         self.enemies.iter().for_each(|enemy| enemy.draw(target, states));
     }
 }
